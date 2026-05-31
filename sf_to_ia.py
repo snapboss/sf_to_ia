@@ -11,6 +11,7 @@ import time
 import argparse
 import requests
 import internetarchive as ia
+from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 
@@ -68,10 +69,19 @@ def stream_download(url: str, dest: Path, retries: int = 3) -> bool:
             with requests.get(url, stream=True,
                               timeout=120, allow_redirects=True) as r:
                 r.raise_for_status()
+                total = int(r.headers.get("content-length", 0))
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                with open(dest, "wb") as f:
+                with open(dest, "wb") as f, tqdm(
+                    total=total,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=f"    {dest.name}",
+                    leave=False,
+                ) as bar:
                     for chunk in r.iter_content(chunk_size=1 << 17):
                         f.write(chunk)
+                        bar.update(len(chunk))
             return True
         except Exception as e:
             print(f"    [attempt {attempt}/{retries}] download error: {e}")

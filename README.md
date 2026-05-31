@@ -19,13 +19,13 @@ Automatically mirror a SourceForge project to Internet Archive. Scrapes the Sour
 ## Installation
 
 ```bash
-pip install requests internetarchive
+pip install requests internetarchive tqdm
 ```
 
 On Debian/Ubuntu systems that block system-wide pip installs:
 
 ```bash
-pip install requests internetarchive --break-system-packages
+pip install requests internetarchive tqdm --break-system-packages
 ```
 
 ## Authentication
