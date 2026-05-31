@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 sf_to_ia.py — Mirror a SourceForge project to Internet Archive
-Usage: python sf_to_ia.py <sourceforge_project_url>
-Example: python sf_to_ia.py https://sourceforge.net/projects/personal-roms
+Usage: python3 sf_to_ia.py <sourceforge_project_url>
+Example: python3 sf_to_ia.py https://sourceforge.net/projects/personal-roms
 """
 
 import sys
@@ -57,7 +57,6 @@ def sf_scrape_list(project: str, path: str = "") -> list[dict]:
             results.append({
                 "name": name,
                 "path": entry_path,
-                # /download redirect resolves to the real CDN file
                 "url":  f"https://sourceforge.net/projects/{project}/files/{entry_path}/download",
             })
     return results
@@ -89,13 +88,21 @@ def stream_download(url: str, dest: Path, retries: int = 3) -> bool:
     return False
 
 
+def ia_file_exists(identifier: str, remote_name: str) -> bool:
+    try:
+        item = ia.get_item(identifier)
+        existing = {f["name"] for f in item.files}
+        return remote_name in existing
+    except Exception:
+        return False
+
+
 def ia_item_owned_by_me(identifier: str) -> bool:
-    """Return True if the IA item exists and we have write access to it."""
+    """Return True if the IA item doesn't exist yet, or we have write access."""
     try:
         item = ia.get_item(identifier)
         if not item.exists:
-            return True   # doesn't exist yet — we can create it
-        # Try a metadata patch; if it fails with 403 we don't own it
+            return True
         r = ia.modify_metadata(identifier, metadata={})
         return r.status_code in (200, 204)
     except Exception:
@@ -107,13 +114,11 @@ def find_free_identifier(base: str) -> str:
     Find an IA identifier we can write to.
     Tries base, then base-2, base-3, ... up to base-99.
     """
-    # Check if base exists and we own it
     item = ia.get_item(base)
     if not item.exists:
         return base
     if ia_item_owned_by_me(base):
         return base
-    # Try suffixes
     for n in range(2, 100):
         candidate = f"{base}-{n}"
         item = ia.get_item(candidate)
@@ -124,15 +129,6 @@ def find_free_identifier(base: str) -> str:
             print(f"  Identifier '{base}' is taken — using '{candidate}'")
             return candidate
     raise RuntimeError(f"Could not find a free IA identifier starting with '{base}'")
-
-
-
-    try:
-        item = ia.get_item(identifier)
-        existing = {f["name"] for f in item.files}
-        return remote_name in existing
-    except Exception:
-        return False
 
 
 def upload_to_ia(identifier: str, local_path: Path,
@@ -169,15 +165,15 @@ def main():
                         help="List files but do not download or upload")
     parser.add_argument("--delay", type=float, default=2.0,
                         help="Seconds to wait between uploads (default: 2)")
-    parser.add_argument("--creator", default="sfiamirror",
-                        help="Creator field for IA metadata (default: sfiamirror)")
+    parser.add_argument("--creator", default="sf_to_ia.py",
+                        help="Creator field for IA metadata (default: sf_to_ia.py)")
     parser.add_argument("--title", default=None,
                         help="Title for IA item (default: project name)")
     args = parser.parse_args()
 
     # 1. parse project
-    project    = extract_project_name(args.sf_url)
-    base_id    = make_ia_identifier(project)
+    project = extract_project_name(args.sf_url)
+    base_id = make_ia_identifier(project)
     print(f"\n  SourceForge project : {project}")
     print(f"  Checking IA identifier…")
     try:
